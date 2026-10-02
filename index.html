@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Aulas">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>Baixador de Aulas</title>
+<style>
+:root{
+  --bg:#F2F2F7; --card:#FFFFFF; --fill:#E9E9EE; --label:#000; --label2:rgba(60,60,67,.62); --label3:rgba(60,60,67,.32);
+  --sep:rgba(60,60,67,.18); --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500;
+  --bar:rgba(242,242,247,.78); --sheet:#F2F2F7; --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#000; --card:#1C1C1E; --fill:#2C2C2E; --label:#FFF; --label2:rgba(235,235,245,.6); --label3:rgba(235,235,245,.3);
+    --sep:rgba(84,84,88,.6); --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --bar:rgba(0,0,0,.72); --sheet:#1C1C1E; }
+  .sheet .group{ background:#2C2C2E }
+}
+*{ box-sizing:border-box }
+html,body{ margin:0; background:var(--bg); color:var(--label); }
+body{ font:17px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; padding-bottom:calc(40px + env(safe-area-inset-bottom)); }
+button,input,textarea{ font:inherit; color:inherit }
+button{ cursor:pointer; -webkit-tap-highlight-color:transparent }
+:focus-visible{ outline:3px solid color-mix(in srgb,var(--blue) 55%,transparent); outline-offset:2px; border-radius:8px }
+
+/* barra superior translúcida */
+.nav{ position:sticky; top:0; z-index:5; padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;
+  background:var(--bar); -webkit-backdrop-filter:saturate(180%) blur(20px); backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:.5px solid transparent; transition:border-color .2s }
+.nav.scrolled{ border-bottom-color:var(--sep) }
+.nav-in{ max-width:680px; margin:0 auto; display:flex; align-items:center; gap:12px; min-height:32px }
+.nav-title{ font-weight:600; opacity:0; transition:opacity .2s; flex:1; text-align:center }
+.nav.scrolled .nav-title{ opacity:1 }
+.txtbtn{ background:none; border:0; color:var(--blue); padding:6px 2px; font-size:17px }
+.txtbtn:disabled{ color:var(--label3) }
+.txtbtn.strong{ font-weight:600 }
+.iconbtn{ width:32px; height:32px; border-radius:50%; border:0; background:var(--blue); color:#fff; display:grid; place-items:center }
+.iconbtn svg{ width:18px; height:18px }
+
+main{ max-width:680px; margin:0 auto; padding:0 16px }
+h1{ font-size:34px; line-height:41px; font-weight:700; letter-spacing:.37px; margin:4px 4px 14px }
+
+/* card do download atual — o elemento principal */
+.now{ background:var(--card); border-radius:22px; padding:20px 20px 18px; margin-bottom:28px }
+.now-name{ font-size:15px; color:var(--label2); margin:0 0 2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.now-pct{ font-size:56px; line-height:1.05; font-weight:600; letter-spacing:-1.5px; font-variant-numeric:tabular-nums; margin:2px 0 14px }
+.now-pct small{ font-size:22px; font-weight:500; letter-spacing:0; color:var(--label2); margin-left:2px }
+.track{ height:8px; border-radius:8px; background:var(--fill); overflow:hidden }
+.track i{ display:block; height:100%; width:0; background:var(--blue); border-radius:8px; transition:width .5s ease }
+.stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:16px }
+.stats div{ font-size:13px; color:var(--label2) }
+.stats b{ display:block; font-size:17px; font-weight:500; color:var(--label); font-variant-numeric:tabular-nums; margin-top:1px }
+.now-idle{ display:flex; align-items:center; gap:16px }
+.now-idle p{ margin:0; flex:1 }
+.now-idle .big{ font-size:22px; font-weight:600; letter-spacing:.35px }
+.now-idle .sub{ font-size:15px; color:var(--label2); margin-top:2px }
+.pill{ border:0; border-radius:999px; padding:10px 20px; font-weight:600; background:var(--blue); color:#fff; font-size:17px; white-space:nowrap }
+.pill.gray{ background:var(--fill); color:var(--blue) }
+.phase{ font-size:15px; color:var(--label2); margin-top:10px }
+
+/* listas agrupadas */
+.sec-h{ font-size:13px; color:var(--label2); margin:0 16px 7px; text-transform:none }
+.group{ background:var(--card); border-radius:12px; overflow:hidden; margin-bottom:28px }
+.row{ display:flex; align-items:center; gap:12px; width:100%; text-align:left; background:none; border:0; padding:11px 16px; min-height:52px; position:relative }
+.row + .row::before{ content:""; position:absolute; top:0; left:52px; right:0; border-top:.5px solid var(--sep) }
+.group.plain .row + .row::before{ left:16px }
+button.row:active{ background:var(--fill) }
+.row .ic{ width:24px; height:24px; flex:none; display:grid; place-items:center }
+.row .ic svg{ width:24px; height:24px }
+.row .tx{ flex:1; min-width:0 }
+.row .t1{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.row .t2{ font-size:14px; color:var(--label2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:1px }
+.row .t2.err{ color:var(--red) }
+.row .val{ color:var(--label2); font-size:17px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:55% }
+.chev{ width:8px; height:14px; flex:none; color:var(--label3) }
+.row.action{ color:var(--blue) }
+.row.action.danger{ color:var(--red) }
+.foot{ font-size:13px; color:var(--label2); margin:-20px 16px 28px; line-height:1.4 }
+.empty{ text-align:center; padding:36px 24px 30px }
+.empty p{ margin:0 0 4px; font-size:20px; font-weight:600 }
+.empty span{ color:var(--label2); font-size:15px }
+
+/* folha (sheet) */
+dialog.sheet{ border:0; padding:0; background:var(--sheet); color:var(--label); width:100%; max-width:560px;
+  border-radius:14px; max-height:min(88vh,860px); box-shadow:0 20px 60px rgba(0,0,0,.25) }
+dialog.sheet::backdrop{ background:rgba(0,0,0,.35) }
+@media (max-width:600px){
+  dialog.sheet{ margin:auto 0 0; max-width:none; border-radius:14px 14px 0 0; max-height:94vh; padding-bottom:env(safe-area-inset-bottom) }
+  dialog.sheet[open]{ animation:up .32s cubic-bezier(.2,.9,.25,1) }
+}
+@keyframes up{ from{ transform:translateY(100%) } }
+@media (prefers-reduced-motion:reduce){ dialog.sheet[open]{ animation:none } .track i{ transition:none } }
+.sh-head{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center; padding:14px 16px 6px; position:sticky; top:0; background:var(--sheet); z-index:2 }
+.sh-head h2{ font-size:17px; font-weight:600; margin:0; text-align:center }
+.sh-head .txtbtn:last-child{ justify-self:end }
+.sh-body{ padding:12px 16px 24px; overflow:auto }
+.field{ display:flex; align-items:center; padding:0 16px; min-height:46px; position:relative }
+.field + .field::before{ content:""; position:absolute; top:0; left:16px; right:0; border-top:.5px solid var(--sep) }
+.field label{ width:92px; flex:none }
+.field input{ flex:1; min-width:0; border:0; background:none; padding:12px 0; outline:none }
+.field input::placeholder,textarea::placeholder{ color:var(--label3) }
+.field.stack{ display:block; padding:10px 16px }
+.field.stack label{ display:block; width:auto; font-size:13px; color:var(--label2); margin-bottom:4px }
+textarea{ width:100%; border:0; background:none; outline:none; resize:vertical; min-height:64px; font-size:15px; font-family:var(--mono); line-height:1.4; word-break:break-all }
+.check{ font-size:13px; margin-top:4px }
+.check.ok{ color:var(--green) } .check.warn{ color:var(--orange) }
+.seg{ display:grid; grid-template-columns:1fr 1fr; background:var(--fill); border-radius:9px; padding:2px; margin-bottom:20px }
+.seg button{ border:0; background:none; border-radius:7px; padding:6px; font-size:14px; font-weight:500 }
+.seg button[aria-pressed="true"]{ background:var(--card); box-shadow:0 1px 4px rgba(0,0,0,.12) }
+.note{ background:var(--card); border-radius:12px; padding:14px 16px; margin-bottom:20px; font-size:15px }
+.note.err{ border-left:4px solid var(--red) } .note.ok{ border-left:4px solid var(--green) } .note.info{ border-left:4px solid var(--blue) }
+.note h3{ font-size:15px; margin:0 0 4px; font-weight:600 }
+.note p{ margin:0; color:var(--label2) }
+.log{ font:12px/1.5 var(--mono); white-space:pre-wrap; word-break:break-all; background:var(--card); border-radius:12px; padding:14px; max-height:50vh; overflow:auto; color:var(--label2) }
+.toast{ position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom)); transform:translate(-50%,20px); opacity:0;
+  background:rgba(30,30,32,.92); color:#fff; padding:11px 18px; border-radius:14px; font-size:15px; transition:.25s; pointer-events:none; z-index:50; max-width:90vw; text-align:center }
+.toast.on{ opacity:1; transform:translate(-50%,0) }
+.spin{ animation:spin 1s linear infinite; transform-origin:center }
+@keyframes spin{ to{ transform:rotate(360deg) } }
+@media (prefers-reduced-motion:reduce){ .spin{ animation:none } }
+.sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0) }
+</style>
+</head>
+<body>
+
+<header class="nav" id="nav">
+  <div class="nav-in">
+    <button class="txtbtn strong" id="btnRun" type="button">Iniciar</button>
+    <div class="nav-title">Aulas</div>
+    <button class="iconbtn" id="btnAdd" type="button" aria-label="Adicionar aula">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M10 3.5v13M3.5 10h13"/></svg>
+    </button>
+  </div>
+</header>
+
+<main>
+  <h1>Aulas</h1>
+  <section class="now" id="now" aria-live="polite"></section>
+
+  <h2 class="sec-h">Salvar em</h2>
+  <div class="group plain" id="dest"></div>
+  <p class="foot" id="destFoot"></p>
+
+  <div id="lists"></div>
+
+  <div class="group plain" id="tools"></div>
+</main>
+
+<!-- Nova aula -->
+<dialog class="sheet" id="dlgAdd" aria-labelledby="addTitle">
+  <div class="sh-head">
+    <button class="txtbtn" type="button" data-close>Cancelar</button>
+    <h2 id="addTitle">Nova aula</h2>
+    <button class="txtbtn strong" type="button" id="addSave">Adicionar</button>
+  </div>
+  <div class="sh-body">
+    <div class="seg" role="group" aria-label="Modo">
+      <button type="button" aria-pressed="true" data-mode="one">Uma aula</button>
+      <button type="button" aria-pressed="false" data-mode="many">Várias de uma vez</button>
+    </div>
+
+    <div id="modeOne">
+      <div class="group">
+        <div class="field"><label for="fNome">Nome</label><input id="fNome" placeholder="Ex.: Aula 03 – Finanças" autocomplete="off"></div>
+        <div class="field"><label for="fPasta">Subpasta</label><input id="fPasta" placeholder="Opcional, ex.: Finanças" autocomplete="off"></div>
+      </div>
+      <div class="group">
+        <div class="field stack"><label for="fVideo">Link do vídeo (.m3u8)</label>
+          <textarea id="fVideo" rows="2" placeholder="https://…/playlist.m3u8?…st=video" spellcheck="false"></textarea><div class="check" id="cVideo"></div></div>
+        <div class="field stack"><label for="fAudio">Link do áudio (.m3u8)</label>
+          <textarea id="fAudio" rows="2" placeholder="https://…/playlist.m3u8?…st=audio" spellcheck="false"></textarea><div class="check" id="cAudio"></div></div>
+      </div>
+      <p class="foot" style="margin-top:-20px">Use o VIDEO component na maior resolução e o AUDIO component da mesma aula. Se colar o link master, o áudio é encontrado sozinho. Os links expiram em algumas horas.</p>
+      <div class="group plain"><button class="row action" type="button" id="addTest">Testar links</button></div>
+      <div id="testOut"></div>
+    </div>
+
+    <div id="modeMany" hidden>
+      <div class="group">
+        <div class="field stack"><label for="fLote">Uma aula por linha: nome | vídeo | áudio | subpasta</label>
+          <textarea id="fLote" rows="8" spellcheck="false" placeholder="Aula 01 | https://…st=video | https://…st=audio | Finanças"></textarea></div>
+      </div>
+      <p class="foot" style="margin-top:-20px">A subpasta é opcional. Linhas vazias são ignoradas.</p>
+    </div>
+  </div>
+</dialog>
+
+<!-- Detalhe / edição de item -->
+<dialog class="sheet" id="dlgItem" aria-labelledby="itemTitle">
+  <div class="sh-head">
+    <button class="txtbtn" type="button" data-close>Fechar</button>
+    <h2 id="itemTitle">Aula</h2>
+    <button class="txtbtn strong" type="button" id="itemSave">Salvar</button>
+  </div>
+  <div class="sh-body" id="itemBody"></div>
+</dialog>
+
+<!-- Registro -->
+<dialog class="sheet" id="dlgLog" aria-labelledby="logTitle">
+  <div class="sh-head">
+    <button class="txtbtn" type="button" data-close>Fechar</button>
+    <h2 id="logTitle">Registro</h2>
+    <button class="txtbtn" type="button" id="logCopy">Copiar</button>
+  </div>
+  <div class="sh-body"><div class="log" id="logText"></div></div>
+</dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="engine.js"></script>
+<script>
+'use strict';
+/* ---------------------------------------------------------------- estado */
+const KEY_Q = 'baixador.fila.v1', KEY_LOG = 'baixador.log.v1';
+const S = {
+  queue: load(KEY_Q, []), log: load(KEY_LOG, []),
+  running: false, loop: false, abort: null, progress: null, currentId: null,
+  dir: null, dirOk: false, wake: null, wakeLock: null,
+};
+const canPickDir = 'showDirectoryPicker' in window;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function load(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } }
+function save(){ try { localStorage.setItem(KEY_Q, JSON.stringify(S.queue)); localStorage.setItem(KEY_LOG, JSON.stringify(S.log.slice(-400))) } catch {} }
+
+// Itens que ficaram "Baixando" quando a aba fechou voltam para a fila
+S.queue.forEach(i => { if (i.status === 'Baixando') i.status = 'Pendente' });
+
+function log(msg, item){
+  const line = `[${new Date().toLocaleString('pt-BR')}] ${item ? item.nome + ' | ' : ''}${msg}`;
+  S.log.push(line);
+  if (item){ (item.log ||= []).push(line); item.log = item.log.slice(-60) }
+  save();
+}
+
+/* ---------------------------------------------------------------- utilidades */
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const nomeArquivo = n => (n || '').replace(/[\/\\:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+function hms(s){
+  if (s == null || !isFinite(s)) return '–';
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
+  return h ? `${h}:${String(m).padStart(2,'0')}:${String(x).padStart(2,'0')}` : `${m}:${String(x).padStart(2,'0')}`;
+}
+function restante(s){
+  if (s == null || !isFinite(s)) return 'calculando';
+  if (s < 60) return '< 1 min';
+  const m = Math.round(s / 60);
+  return m < 60 ? `${m} min` : `${Math.floor(m/60)} h ${m%60} min`;
+}
+function bytes(b){
+  if (!b) return '0 MB';
+  const gb = b / 1073741824;
+  return gb >= 1 ? gb.toLocaleString('pt-BR',{maximumFractionDigits:2}) + ' GB' : (b/1048576).toLocaleString('pt-BR',{maximumFractionDigits:1}) + ' MB';
+}
+function checaLink(u){
+  u = (u || '').trim();
+  if (!u) return { ok:false, msg:'' };
+  if (!/^https?:\/\//i.test(u)) return { ok:false, msg:'Não começa com https://' };
+  if (!/\.m3u8/i.test(u)) return { ok:false, msg:'Não contém .m3u8 — confira se copiou o link certo' };
+  return { ok:true, msg:'Formato parece correto' };
+}
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2600) }
+
+/* ---------------------------------------------------------------- diagnóstico */
+const DIAG = {
+  HTTP_403: ['Link expirado ou acesso negado', 'Abra a aula de novo no navegador, capture novos links de vídeo e áudio e edite este item.'],
+  HTTP_410: ['Link expirado', 'Capture novos links com a aula aberta e edite este item.'],
+  HTTP_401: ['Sessão expirada', 'O token do link perdeu a validade. Capture novos links com a aula aberta.'],
+  HTTP_404: ['Link não encontrado', 'Provavelmente o link foi copiado incompleto. Copie de novo, inteiro.'],
+  HTTP_OTHER: ['O servidor recusou o pedido', 'Tente de novo em alguns minutos. Se persistir, capture novos links.'],
+  NETWORK: ['Sem acesso ao servidor', 'Confira internet e VPN. Se a internet estiver ok, o servidor pode não permitir download direto pelo navegador; nesse caso use a versão do Terminal (.command).'],
+  NOT_PLAYLIST: ['O link não é uma playlist .m3u8', 'Confira se copiou o VIDEO/AUDIO component, e não a página da aula.'],
+  ENCRYPTED: ['Conteúdo protegido', 'Esta aula usa criptografia. O app não baixa conteúdo protegido.'],
+  TS_FORMAT: ['Formato TS não suportado na versão web', 'Esta aula usa segmentos .ts. Use a versão do Terminal (.command) para ela.'],
+  NO_INIT: ['Formato de vídeo não reconhecido', 'O cabeçalho MP4 não foi encontrado. Confira se os links são os components certos.'],
+  BAD_MP4: ['Arquivo de vídeo inesperado', 'O formato dos segmentos não é suportado na versão web. Use a versão do Terminal.'],
+  NO_VIDEO_TRACK: ['O link de vídeo não tem vídeo', 'Os links podem estar trocados ou o link de vídeo é de outra faixa.'],
+  NO_AUDIO_TRACK: ['O link de áudio não tem áudio', 'Confira se colou o AUDIO component (geralmente com st=audio).'],
+  EMPTY_VIDEO: ['Link de vídeo vazio', 'Edite o item e cole o VIDEO component.'],
+  DISK: ['Não foi possível gravar o arquivo', 'Confira espaço livre no disco e escolha a pasta de destino de novo.'],
+  PERMISSION: ['Sem permissão para a pasta', 'Toque em Iniciar e permita o acesso à pasta, ou escolha outra pasta.'],
+  GENERIC: ['Falha inesperada', 'Veja os detalhes técnicos abaixo e tente de novo.'],
+};
+const diag = code => DIAG[code] || DIAG.GENERIC;
+function normErro(e){
+  if (e && e.code) return e;
+  const n = e && e.name;
+  if (n === 'QuotaExceededError' || n === 'InvalidStateError') return { code:'DISK', message:String(e.message || e) };
+  if (n === 'NotAllowedError' || n === 'SecurityError') return { code:'PERMISSION', message:String(e.message || e) };
+  return { code:'GENERIC', message:String(e && e.message || e) };
+}
+
+/* ---------------------------------------------------------------- pasta de destino (Chrome/Edge) */
+const idb = () => new Promise((res, rej) => { const r = indexedDB.open('baixador', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error) });
+async function kv(op, key, val){
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('kv', op === 'get' ? 'readonly' : 'readwrite'), st = tx.objectStore('kv');
+    const r = op === 'get' ? st.get(key) : op === 'del' ? st.delete(key) : st.put(val, key);
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function carregaPasta(){
+  if (!canPickDir) return;
+  try { S.dir = await kv('get', 'dir') || null; S.dirOk = S.dir ? (await S.dir.queryPermission({ mode:'readwrite' })) === 'granted' : false } catch { S.dir = null }
+  render();
+}
+async function escolhePasta(){
+  try {
+    const h = await window.showDirectoryPicker({ id:'baixador', mode:'readwrite' });
+    S.dir = h; S.dirOk = true; await kv('put', 'dir', h);
+    log(`Pasta de destino: ${h.name}`); toast(`Salvando em “${h.name}”`); render();
+  } catch (e) { if (e.name !== 'AbortError') toast('Não foi possível usar essa pasta') }
+}
+async function garantePermissao(){
+  if (!S.dir) return true;
+  if ((await S.dir.queryPermission({ mode:'readwrite' })) === 'granted') return (S.dirOk = true);
+  S.dirOk = (await S.dir.requestPermission({ mode:'readwrite' })) === 'granted';
+  render(); return S.dirOk;
+}
+async function abreSaida(item){
+  const arquivo = (nomeArquivo(item.nome) || 'aula_' + item.id) + '.mp4';
+  if (S.dir){
+    let d = S.dir;
+    for (const p of (item.pasta || '').split('/').map(nomeArquivo).filter(Boolean)) d = await d.getDirectoryHandle(p, { create:true });
+    const fh = await d.getFileHandle(arquivo, { create:true });
+    const w = await fh.createWritable();
+    return { arquivo, local:[S.dir.name, item.pasta, arquivo].filter(Boolean).join('/'),
+      write: u8 => w.write(u8), close: () => w.close(), abort: () => w.abort().catch(()=>{}) };
+  }
+  // Sem pasta: monta o arquivo e entrega como download do navegador
+  const parts = [];
+  return { arquivo, local:'Downloads/' + arquivo,
+    write: async u8 => { parts.push(u8) },
+    close: async () => {
+      const url = URL.createObjectURL(new Blob(parts, { type:'video/mp4' }));
+      const a = Object.assign(document.createElement('a'), { href:url, download:arquivo });
+      document.body.appendChild(a); a.click(); a.remove();
+      parts.length = 0; setTimeout(() => URL.revokeObjectURL(url), 60000);
+    },
+    abort: async () => { parts.length = 0 } };
+}
+
+/* ---------------------------------------------------------------- worker */
+async function iniciar(){
+  if (!(await garantePermissao())){ toast('Permita o acesso à pasta para começar'); return }
+  S.running = true; log('Worker iniciado.'); render(); pedeWakeLock(); loop();
+}
+function parar(){
+  S.running = false;
+  if (S.abort) S.abort.abort();
+  acorda(); log('Worker parado pelo operador.'); soltaWakeLock(); render();
+}
+function acorda(){ if (S.wake){ S.wake(); S.wake = null } }
+const esperaTrabalho = () => new Promise(r => { S.wake = r });
+
+async function loop(){
+  if (S.loop) return; S.loop = true;
+  while (S.running){
+    const item = S.queue.find(i => i.status === 'Pendente');
+    if (!item){ S.progress = null; S.currentId = null; render(); await esperaTrabalho(); continue }
+    await processa(item);
+    await new Promise(r => setTimeout(r, 400));
+  }
+  S.loop = false; S.currentId = null; S.progress = null; render();
+}
+
+let rafPend = false;
+const renderSoon = () => { if (!rafPend){ rafPend = true; requestAnimationFrame(() => { rafPend = false; render() }) } };
+
+async function processa(item){
+  item.status = 'Baixando'; item.erro = null; item.inicio = Date.now();
+  S.currentId = item.id; S.progress = { phase:'Lendo links', percent:0 };
+  S.abort = new AbortController(); save(); render();
+  log('Iniciando download.', item);
+  let sink;
+  try {
+    sink = await abreSaida(item);
+    item.saida = sink.local;
+    const r = await Engine.download({ video:item.video, audio:item.audio }, {
+      signal:S.abort.signal, sink,
+      onProgress: p => { S.progress = p; renderSoon() },
+      log: m => log(m, item),
+    });
+    item.status = 'Concluído'; item.fim = Date.now(); item.tamanho = r.bytes; item.duracao = r.duration;
+    log(`Concluído: ${bytes(r.bytes)}, ${hms(r.duration)} de aula, ${r.segments} partes.`, item);
+    toast(`“${item.nome}” concluída`);
+  } catch (e0) {
+    const e = normErro(e0);
+    if (sink) await sink.abort();
+    if (e.code === 'ABORTED'){
+      item.status = 'Pendente'; log('Download interrompido; item voltou para a fila.', item);
+    } else {
+      item.status = 'Falhou'; item.erro = { code:e.code, msg:e.message || e.detail || '', em:Date.now() };
+      log(`ERRO ${e.code}: ${diag(e.code)[0]} — ${e.message || ''}${e.url ? ' | ' + e.url.slice(0, 120) : ''}`, item);
+      toast(`Falhou: ${item.nome}`);
+    }
+  } finally {
+    S.abort = null; S.progress = null; S.currentId = null; save(); render();
+  }
+}
+
+async function pedeWakeLock(){ try { S.wakeLock = await navigator.wakeLock?.request('screen') } catch {} }
+function soltaWakeLock(){ try { S.wakeLock?.release() } catch {} S.wakeLock = null }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.running) pedeWakeLock() });
+window.addEventListener('beforeunload', e => { if (S.currentId){ e.preventDefault(); e.returnValue = '' } });
+
+/* ---------------------------------------------------------------- render */
+const ICON = {
+  Pendente:'<svg viewBox="0 0 24 24" fill="none" stroke="var(--label3)" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2" stroke-linecap="round"/></svg>',
+  Baixando:'<svg viewBox="0 0 24 24" fill="none" stroke-width="2.4"><circle cx="12" cy="12" r="9" stroke="var(--fill)"/><path class="spin" d="M12 3a9 9 0 0 1 9 9" stroke="var(--blue)" stroke-linecap="round"/></svg>',
+  'Concluído':'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="var(--green)"/><path d="M7.5 12.3l3 3 6-6.3" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  Falhou:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="var(--red)"/><path d="M12 7v6" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="16.6" r="1.4" fill="#fff"/></svg>',
+};
+const CHEV = '<svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg>';
+
+function render(){
+  const q = S.queue, by = st => q.filter(i => i.status === st);
+  const pend = by('Pendente'), fal = by('Falhou'), ok = by('Concluído'), cur = q.find(i => i.id === S.currentId);
+
+  $('#btnRun').textContent = S.running ? 'Pausar' : 'Iniciar';
+  $('#btnRun').disabled = !S.running && !pend.length;
+
+  // card principal
+  const now = $('#now'), p = S.progress;
+  if (cur && p){
+    const pct = Math.floor(p.percent || 0);
+    now.innerHTML = `
+      <p class="now-name">${esc(cur.nome)}</p>
+      <div class="now-pct">${pct}<small>%</small></div>
+      <div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Progresso"><i style="width:${p.percent||0}%"></i></div>
+      ${p.phase === 'Baixando' ? `<div class="stats">
+        <div>Aula<b>${hms(p.mediaSec)} de ${hms(p.durationSec)}</b></div>
+        <div>Velocidade<b>${bytes(p.speed)}/s</b></div>
+        <div>Falta<b>${restante(p.etaSec)}</b></div></div>` : `<div class="phase">${esc(p.phase)}…</div>`}`;
+  } else if (S.running){
+    now.innerHTML = `<div class="now-idle"><p><span class="big">Esperando aulas</span><br><span class="sub">Adicione uma aula e o download começa sozinho.</span></p>
+      <button class="pill gray" type="button" onclick="abrirAdd()">Adicionar</button></div>`;
+  } else if (pend.length){
+    now.innerHTML = `<div class="now-idle"><p><span class="big">${pend.length} ${pend.length === 1 ? 'aula pronta' : 'aulas prontas'}</span><br><span class="sub">Toque em Iniciar para baixar em sequência.</span></p>
+      <button class="pill" type="button" onclick="iniciar()">Iniciar</button></div>`;
+  } else {
+    now.innerHTML = `<div class="empty"><p>Nenhuma aula na fila</p><span>Cole os links de vídeo e áudio de uma aula para começar.</span><br><br>
+      <button class="pill" type="button" onclick="abrirAdd()">Adicionar aula</button></div>`;
+  }
+
+  // destino
+  if (canPickDir){
+    $('#dest').innerHTML = `<button class="row" type="button" onclick="escolhePasta()"><div class="tx"><div class="t1">Pasta</div></div>
+      <span class="val">${S.dir ? esc(S.dir.name) : 'Downloads'}</span>${CHEV}</button>`
+      + (S.dir ? `<button class="row action" type="button" onclick="usarDownloads()">Usar Downloads do navegador</button>` : '');
+    $('#destFoot').textContent = S.dir
+      ? (S.dirOk ? 'As aulas são gravadas direto nesta pasta. Subpastas são criadas automaticamente.' : 'O navegador vai pedir permissão para a pasta ao iniciar.')
+      : 'Escolha uma pasta (pode ser o SSD externo) para gravar direto nela, sem passar pela memória.';
+  } else {
+    $('#dest').innerHTML = `<div class="row"><div class="tx"><div class="t1">Downloads do navegador</div></div></div>`;
+    $('#destFoot').textContent = 'Este navegador não permite escolher pasta. Para gravar direto no SSD externo e baixar aulas longas com folga, use o Chrome.';
+  }
+
+  // listas
+  const row = i => {
+    const sub = i.status === 'Falhou' ? `<div class="t2 err">${esc(diag(i.erro?.code)[0])}</div>`
+      : i.status === 'Concluído' ? `<div class="t2">${[i.pasta, i.tamanho ? bytes(i.tamanho) : '', i.duracao ? hms(i.duracao) : ''].filter(Boolean).map(esc).join(', ')}</div>`
+      : i.status === 'Baixando' ? `<div class="t2">Baixando${S.progress?.percent ? ', ' + Math.floor(S.progress.percent) + '%' : ''}</div>`
+      : i.pasta ? `<div class="t2">${esc(i.pasta)}</div>` : '';
+    return `<button class="row" type="button" onclick="abrirItem('${i.id}')"><span class="ic">${ICON[i.status] || ICON.Pendente}</span>
+      <div class="tx"><div class="t1">${esc(i.nome)}</div>${sub}</div>${CHEV}</button>`;
+  };
+  const sec = (t, list) => list.length ? `<h2 class="sec-h">${t}</h2><div class="group">${list.map(row).join('')}</div>` : '';
+  const ativos = q.filter(i => i.status === 'Pendente' || i.status === 'Baixando');
+  $('#lists').innerHTML = sec('Na fila', ativos) + sec('Com erro', fal) + sec('Concluídas', ok);
+
+  // ferramentas
+  $('#tools').innerHTML =
+    (fal.length ? `<button class="row action" type="button" onclick="tentarFalhas()">Tentar de novo as que falharam</button>` : '') +
+    (ok.length ? `<button class="row action" type="button" onclick="limparConcluidas()">Limpar concluídas</button>` : '') +
+    `<button class="row action" type="button" onclick="abrirLog()">Ver registro</button>`;
+}
+
+/* ---------------------------------------------------------------- ações */
+function usarDownloads(){ S.dir = null; S.dirOk = false; kv('del','dir'); toast('Salvando em Downloads'); render() }
+function tentarFalhas(){ let n = 0; S.queue.forEach(i => { if (i.status === 'Falhou'){ i.status = 'Pendente'; n++ } }); save(); acorda(); render(); toast(`${n} ${n === 1 ? 'aula voltou' : 'aulas voltaram'} para a fila`) }
+function limparConcluidas(){ if (!confirm('Tirar as aulas concluídas da lista? Os arquivos não são apagados.')) return; S.queue = S.queue.filter(i => i.status !== 'Concluído'); save(); render() }
+function adiciona(list){
+  for (const x of list){
+    const it = { id:uid(), status:'Pendente', nome:x.nome, video:x.video.trim(), audio:(x.audio||'').trim(), pasta:(x.pasta||'').trim(), criado:Date.now(), log:[] };
+    S.queue.push(it); log('Adicionada à fila.', it);
+  }
+  save(); acorda(); render();
+}
+
+/* folhas */
+document.querySelectorAll('dialog').forEach(d => {
+  d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-close]')) d.close() });
+});
+
+// --- adicionar
+let modo = 'one';
+document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
+  modo = b.dataset.mode;
+  document.querySelectorAll('[data-mode]').forEach(x => x.setAttribute('aria-pressed', x === b));
+  $('#modeOne').hidden = modo !== 'one'; $('#modeMany').hidden = modo !== 'many';
+});
+function marca(el, out){ const c = checaLink(el.value); out.textContent = c.msg; out.className = 'check ' + (c.ok ? 'ok' : c.msg ? 'warn' : '') }
+$('#fVideo').oninput = () => marca($('#fVideo'), $('#cVideo'));
+$('#fAudio').oninput = () => marca($('#fAudio'), $('#cAudio'));
+function abrirAdd(){
+  ['#fNome','#fPasta','#fVideo','#fAudio','#fLote'].forEach(s => $(s).value = '');
+  $('#cVideo').textContent = $('#cAudio').textContent = ''; $('#testOut').innerHTML = '';
+  const ult = [...S.queue].reverse().find(i => i.pasta); if (ult) $('#fPasta').value = ult.pasta;
+  $('#dlgAdd').showModal(); setTimeout(() => $('#fNome').focus(), 50);
+}
+$('#btnAdd').onclick = abrirAdd;
+$('#btnRun').onclick = () => S.running ? parar() : iniciar();
+$('#addSave').onclick = () => {
+  if (modo === 'many'){
+    const linhas = $('#fLote').value.split('\n').map(l => l.trim()).filter(Boolean);
+    const itens = linhas.map((l, n) => { const [nome, video, audio, pasta] = l.split('|').map(s => (s||'').trim()); return { nome: nome || `Aula ${n+1}`, video: video || '', audio, pasta } });
+    const ruins = itens.filter(i => !checaLink(i.video).ok);
+    if (!itens.length) return toast('Cole pelo menos uma linha');
+    if (ruins.length && !confirm(`${ruins.length} linha(s) com link de vídeo estranho. Adicionar mesmo assim?`)) return;
+    adiciona(itens); $('#dlgAdd').close(); toast(`${itens.length} aulas adicionadas`);
+  } else {
+    const v = $('#fVideo').value.trim(), a = $('#fAudio').value.trim();
+    if (!v) return toast('Cole o link do vídeo'), $('#fVideo').focus();
+    const av = [checaLink(v), a ? checaLink(a) : { ok:true }];
+    if (av.some(x => !x.ok) && !confirm('Algum link não parece um .m3u8 válido. Adicionar mesmo assim?')) return;
+    if (!a && !confirm('Sem link de áudio. Se não for um link master, o arquivo pode ficar sem som. Continuar?')) return;
+    const nome = nomeArquivo($('#fNome').value) || `Aula ${new Date().toLocaleString('pt-BR').replace(/[\/:]/g,'-')}`;
+    adiciona([{ nome, video:v, audio:a, pasta:$('#fPasta').value }]);
+    $('#dlgAdd').close();
+    toast(S.running ? 'Adicionada. Entra na fila automaticamente.' : 'Adicionada à fila');
+  }
+};
+async function testar(video, audio, out){
+  out.innerHTML = `<div class="note info"><h3>Testando…</h3><p>Lendo as playlists e o início de cada faixa.</p></div>`;
+  try {
+    const r = await Engine.probe(video, audio);
+    const extra = [r.videoInfo?.height ? `${r.videoInfo.width}×${r.videoInfo.height}` : '', r.swapped ? 'links trocados (será corrigido sozinho)' : '', r.hasAudio ? '' : 'sem faixa de áudio separada'].filter(Boolean).join('; ');
+    out.innerHTML = `<div class="note ok"><h3>Links funcionando</h3><p>${hms(r.duration)} de aula, ${r.videoSegments + r.audioSegments} partes.${extra ? ' ' + esc(extra) + '.' : ''}</p></div>`;
+  } catch (e0) {
+    const e = normErro(e0), [t, h] = diag(e.code);
+    out.innerHTML = `<div class="note err"><h3>${esc(t)}</h3><p>${esc(h)}</p></div>`;
+  }
+}
+$('#addTest').onclick = () => testar($('#fVideo').value, $('#fAudio').value, $('#testOut'));
+
+// --- item
+let itemAberto = null;
+function abrirItem(id){
+  const i = S.queue.find(x => x.id === id); if (!i) return;
+  itemAberto = i;
+  const editavel = i.status === 'Pendente' || i.status === 'Falhou';
+  $('#itemTitle').textContent = i.status;
+  $('#itemSave').hidden = !editavel;
+  let h = '';
+  if (i.status === 'Falhou'){
+    const [t, d] = diag(i.erro?.code);
+    h += `<div class="note err"><h3>${esc(t)}</h3><p>${esc(d)}</p></div>`;
+  }
+  if (i.status === 'Concluído') h += `<div class="note ok"><h3>Salva</h3><p>${esc(i.saida || '')}${i.tamanho ? ', ' + bytes(i.tamanho) : ''}</p></div>`;
+  if (i.status === 'Baixando') h += `<div class="note info"><h3>Baixando agora</h3><p>Para editar, pause o download primeiro.</p></div>`;
+  const dis = editavel ? '' : 'disabled';
+  h += `<div class="group">
+      <div class="field"><label for="eNome">Nome</label><input id="eNome" value="${esc(i.nome)}" ${dis}></div>
+      <div class="field"><label for="ePasta">Subpasta</label><input id="ePasta" value="${esc(i.pasta)}" placeholder="Nenhuma" ${dis}></div></div>
+    <div class="group">
+      <div class="field stack"><label for="eVideo">Link do vídeo</label><textarea id="eVideo" rows="3" spellcheck="false" ${dis}>${esc(i.video)}</textarea></div>
+      <div class="field stack"><label for="eAudio">Link do áudio</label><textarea id="eAudio" rows="3" spellcheck="false" ${dis}>${esc(i.audio)}</textarea></div></div>
+    <div class="group plain">
+      ${editavel ? `<button class="row action" type="button" id="eTest">Testar links</button>` : ''}
+      ${i.status === 'Falhou' ? `<button class="row action" type="button" id="eRetry">Tentar de novo</button>` : ''}
+      ${i.status === 'Concluído' ? `<button class="row action" type="button" id="eRedo">Baixar de novo</button>` : ''}
+      ${i.status !== 'Baixando' ? `<button class="row action danger" type="button" id="eDel">Remover da lista</button>` : ''}
+    </div>
+    <div id="eOut"></div>
+    ${i.log?.length ? `<h2 class="sec-h">Detalhes técnicos</h2><div class="log">${esc(i.log.slice(-25).join('\n'))}</div>` : ''}`;
+  $('#itemBody').innerHTML = h;
+  const f = () => ({ nome: nomeArquivo($('#eNome').value) || i.nome, pasta: $('#ePasta').value.trim(), video: $('#eVideo').value.trim(), audio: $('#eAudio').value.trim() });
+  $('#eTest') && ($('#eTest').onclick = () => { const x = f(); testar(x.video, x.audio, $('#eOut')) });
+  $('#eRetry') && ($('#eRetry').onclick = () => { Object.assign(i, f(), { status:'Pendente' }); save(); acorda(); render(); $('#dlgItem').close(); toast('Voltou para a fila') });
+  $('#eRedo') && ($('#eRedo').onclick = () => { i.status = 'Pendente'; save(); acorda(); render(); $('#dlgItem').close(); toast('Voltou para a fila') });
+  $('#eDel') && ($('#eDel').onclick = () => { if (!confirm(`Remover “${i.nome}” da lista?`)) return; S.queue = S.queue.filter(x => x !== i); save(); render(); $('#dlgItem').close() });
+  $('#dlgItem').showModal();
+}
+$('#itemSave').onclick = () => {
+  const i = itemAberto; if (!i) return;
+  Object.assign(i, { nome: nomeArquivo($('#eNome').value) || i.nome, pasta: $('#ePasta').value.trim(), video: $('#eVideo').value.trim(), audio: $('#eAudio').value.trim(), status:'Pendente', erro:null });
+  log('Item editado; voltou para a fila.', i); save(); acorda(); render(); $('#dlgItem').close(); toast('Alterações salvas');
+};
+
+// --- registro
+function abrirLog(){ $('#logText').textContent = S.log.slice(-200).join('\n') || 'Nada registrado ainda.'; $('#dlgLog').showModal(); const l = $('#logText'); l.scrollTop = l.scrollHeight }
+$('#logCopy').onclick = async () => { try { await navigator.clipboard.writeText(S.log.join('\n')); toast('Registro copiado') } catch { toast('Não foi possível copiar') } };
+
+// barra superior
+addEventListener('scroll', () => $('#nav').classList.toggle('scrolled', scrollY > 30), { passive:true });
+
+// outra aba mexeu na fila
+addEventListener('storage', e => { if (e.key === KEY_Q && !S.currentId){ S.queue = load(KEY_Q, []); render() } });
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+render(); carregaPasta();
+</script>
+</body>
+</html>
